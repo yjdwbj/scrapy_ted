@@ -1,0 +1,15 @@
+# autogen id-lang.map
+*~                    IGNORE
+*.bak                 IGNORE
+*.bk[0-9]             IGNORE
+[sp].*                IGNORE
+*/.deps/*             IGNORE
+*/.svn/*              IGNORE
+*.svn-base            IGNORE
+.git/*                IGNORE
+.exvim*/*             IGNORE
+*.err                 IGNORE
+*.exe                 IGNORE
+*.lnk                 IGNORE
+*.min.js              IGNORE
+*..pyc    text
