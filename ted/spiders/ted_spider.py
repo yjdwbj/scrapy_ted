@@ -74,9 +74,8 @@ class TedSpider(scrapy.Spider):
         site = sel.xpath('//div/a[@id="hero-transcript-link"]/@href').extract()[0]
         #print "site is",site.extract()
         url= 'http://%s%s' % (self.allowed_domains[0],site)
-        print "transcript url",url
+        #print "transcript url",url
         yield Request(url,callback=self.parse_transcript,meta={'item':item})
-        return
         #yield Request(url+'#',callback=self.parse_download)
         #print response.xpath('//script')
         #soup = BS(response.body)
