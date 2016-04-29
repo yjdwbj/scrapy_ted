@@ -1,3 +1,4 @@
+#coding: utf-8
 import scrapy
 from scrapy.spider import Spider
 from scrapy.selector import Selector
@@ -36,7 +37,7 @@ class TedSpider(scrapy.Spider):
             item['speaker'] = site.xpath('div/div/div[1]/span/a/text()').extract()
             sdir = "%s/%s" % (self.root_dir,item['speaker'][0]) 
             if not os.path.exists(sdir):
-                os.mkdir(self.sdir)
+                os.mkdir(sdir)
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/a/span/span[2]
             item['duration'] = site.xpath('div/div/a/span/span[2]/text()').extract()
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/div[1]/h9/a
