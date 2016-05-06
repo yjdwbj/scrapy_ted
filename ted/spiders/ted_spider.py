@@ -7,8 +7,9 @@ from scrapy.http import Request
 from BeautifulSoup import BeautifulSoup as BS
 import re
 import json
-import os
+import os,sys
 
+USERAGENT='Mozilla/5.0 (X11; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0'
 
 class TedSpider(scrapy.Spider):
     name = "TED"
@@ -80,18 +81,24 @@ class TedSpider(scrapy.Spider):
                 if audioDownload:
                     t = audioDownload.split('?')[0]
                     pos = t.rfind('/') + 1
-                    output = "%s/%s" % (rdir,t[pos:])
+                    #output = "%s/%s" % (rdir,t[pos:])
+                    output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
                     try:
-                        os.system('wget -c %s -O "%s"' % (audioDownload,output))
+                        os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
                     except UnicodeEncodeError:
                         print "str is",audioDownload,output
+                        sys.exit(0)
 
                 for k,v in subtitleDownload.items():
                     #print "lang",k,'--->',v
                     if k == 'zh-cn' or k == 'en':
-                        pos = v['high'].rfind('/')+1
-                        output = "%s/%s" % (rdir,v['high'][pos:])
-                        os.system('wget -c %s -O "%s"' % (v['high'],output))
+                        try:
+                            pos = v['high'].rfind('/')+1
+                            output = "%s/%s" % (rdir,v['high'][pos:])
+                        except KeyError:
+                            print "occur error",v
+                            sys.exit(0)
+                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,v['high'],output))
 
     def parse_transcript(self,response):
         item = response.meta['item']
