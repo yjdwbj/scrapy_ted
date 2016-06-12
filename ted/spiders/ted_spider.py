@@ -5,6 +5,7 @@ from scrapy.selector import Selector
 from ted.items import TedItem
 from scrapy.http import Request
 from BeautifulSoup import BeautifulSoup as BS
+from datetime import timedelta
 import re
 import json
 import os,sys
@@ -20,11 +21,11 @@ class TedSpider(scrapy.Spider):
         os.mkdir(root_dir)
     start_urls =[
             "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-            "http://www.ted.com/playlists/311/time_warp",
-            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo"
+           # "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+           # "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+           # "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+           # "http://www.ted.com/playlists/311/time_warp",
+           # "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo"
             ]
 
     def parse(self,response):
@@ -67,6 +68,7 @@ class TedSpider(scrapy.Spider):
         rdir = "%s/%s" % (self.root_dir,item['speaker'][0]) 
         #print "output dir",rdir
         # 下载只用wget 顺序下载，多线程怕对务器产生大压力。
+        return
 
         for js in response.xpath('//script'):
             txt = js.xpath('.//text()').extract()
@@ -84,6 +86,7 @@ class TedSpider(scrapy.Spider):
                     #output = "%s/%s" % (rdir,t[pos:])
                     output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
                     try:
+                        pass
                         os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
                     except UnicodeEncodeError:
                         print "str is",audioDownload,output
@@ -91,6 +94,7 @@ class TedSpider(scrapy.Spider):
 
                 for k,v in subtitleDownload.items():
                     #print "lang",k,'--->',v
+                    # 下载中英文两种语言的视频
                     if k == 'zh-cn' or k == 'en':
                         try:
                             pos = v['high'].rfind('/')+1
@@ -98,19 +102,39 @@ class TedSpider(scrapy.Spider):
                         except KeyError:
                             print "occur error",v
                             sys.exit(0)
-                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,v['high'],output))
+                        #os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,v['high'],output))
+                        #break
 
     def parse_transcript(self,response):
         item = response.meta['item']
         lang = response.url.split('=')[1]
-        fname = "%s/%s/%s-%s.txt" % (self.root_dir,item['speaker'][0],
-                item['title'][0].splitlines()[1],lang)
+        if lang == 'en':
+            fname = "%s/%s/%s.lrc" % (self.root_dir,item['speaker'][0],
+                    item['title'][0].splitlines()[1])
+        else:
+            fname = "%s/%s/%s-%s.lrc" % (self.root_dir,item['speaker'][0],
+                    item['title'][0].splitlines()[1],lang)
 
         sel = Selector(response)
         lines  = response.xpath('//p[@class="talk-transcript__para"]')
+        lbody = response.xpath('//div[@class="talk-transcript__body"]')
+        ftime = lbody.xpath('./p//data[1]/text()').extract()
         #lines = sel.xpath('//div')
         #print "lines",lines
         with  open(fname,'w') as fd:
+            #print "item['title']",item['title']
+            s= '[ti:%s]\n' % ''.join(item['title'][0].splitlines())
+            fd.write(s.encode('utf-8'))
+            s='[ar:%s]\n' % ''.join(item['speaker'][0].splitlines())
+            fd.write(s.encode('utf-8'))
+            fd.write(u'[al:www.ted.com]\n')
+            fd.write(u'[offset:1000]\n')
+            ftime = lines[0].xpath('.//data[1]/text()').extract();
+            
+            #print "start seconds is ",ftime
+            start = timedelta(seconds = int(ftime[0].splitlines()[1].split(':')[1]))
+           # print "start seconds is ",start
+            
             for line in lines:
                 #/html/body/div[1]/div[2]/div/div[2]/div[3]/div/div/div[2]/div[2]/div/p[1]/data
                 ptime = line.xpath('.//data/text()').extract() 
@@ -120,12 +144,13 @@ class TedSpider(scrapy.Spider):
                 frags = line.xpath('.//span/span[@class="talk-transcript__fragment"]')
                 txt = []
                 for f in frags:
-                    txt.append(''.join(f.xpath('.//text()').extract()[0].splitlines()))
-                
-                s = ptime[0] + ''.join(txt)
-                fd.write(s.encode('utf-8'))
-                fd.write('\n')
-
+                    ms = f.xpath('./@data-time').extract()
+                    #print "data-time is -------------------------",ms
+                    dtime = timedelta(milliseconds = int(ms[0]))
+                    mf = ' '.join(f.xpath('./text()').extract()[0].splitlines())
+                    txt = '[%s]%s' % (str(start + dtime),mf)
+                    fd.write(txt.strip().encode('utf-8'))
+                    fd.write('\n')
         url = response.url.replace('=en','=zh-cn')
         #print "zh_cn links,url",url
         yield Request(url,callback=self.parse_transcript,meta={'item':item})
