@@ -23,12 +23,12 @@ class TedSpider(scrapy.Spider):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-           # "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
             "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-           # "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-           # "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-           # "http://www.ted.com/playlists/311/time_warp",
-           # "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo"
+            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+            "http://www.ted.com/playlists/311/time_warp",
+            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo"
             ]
 
     def extract_mp3(self,response,mp4):
@@ -159,10 +159,10 @@ class TedSpider(scrapy.Spider):
         lang = response.url.split('=')[1]
         if lang == 'en':
             fname = "%s/%s/%s.lrc" % (self.root_dir,item['speaker'][0],
-                    item['title'][0].splitlines()[1])
+                    item['title'][0])
         else:
             fname = "%s/%s/%s-%s.lrc" % (self.root_dir,item['speaker'][0],
-                    item['title'][0].splitlines()[1],lang)
+                    item['title'][0],lang)
 
         sel = Selector(response)
         lines  = response.xpath('//p[@class="talk-transcript__para"]')
@@ -203,7 +203,6 @@ class TedSpider(scrapy.Spider):
                     else:
                         p = p[:-3]
                     txt = '[%s]%s' % (p,mf)
-                    print "lrc text",txt
                     fd.write(txt.strip().encode('utf-8'))
                     fd.write('\n')
         url = response.url.replace('=en','=zh-cn')
