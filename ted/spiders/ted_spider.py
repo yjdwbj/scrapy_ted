@@ -12,7 +12,7 @@ import json
 import os,sys
 
 USERAGENT='Mozilla/5.0 (X11; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0'
-CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet"]
+CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet",""]
 CONVERT = 'ffmpeg;-i;%s;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
 
 class TedSpider(scrapy.Spider):
@@ -35,7 +35,7 @@ class TedSpider(scrapy.Spider):
         """ 这里要用到FFMPEG工具"""
         item = response.meta['item']
         rdir = "%s/%s" % (self.root_dir,item['speaker'][0]) 
-        CMDSTR.append("%s" % mp4)
+        CMDSTR[-1] = mp4
         p = subprocess.Popen(CMDSTR,stdout=subprocess.PIPE,stderr = subprocess.PIPE,shell=False)
         out,err = p.communicate()
         #print " ffprobe out ---------------------------------------------"
