@@ -23,8 +23,8 @@ class TedSpider(scrapy.Spider):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-           # "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+           # "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
            # "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
            # "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
            # "http://www.ted.com/playlists/311/time_warp",
@@ -55,7 +55,7 @@ class TedSpider(scrapy.Spider):
             return
 
         ffmpegstr = CONVERT % (mp4 ,''.join(item['speaker'][0].splitlines()),title,output)
-        print ffmpegstr.split(";")
+        #print ffmpegstr.split(";")
         p = subprocess.Popen(ffmpegstr.split(';'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=False)
         #p = subprocess.Popen(ffmpegstr.split(';'))
         #out,err = p.communicate()
@@ -99,8 +99,9 @@ class TedSpider(scrapy.Spider):
         sel = Selector(response)
         #sites = sel.xpath('/html/body/div[1]/div[2]/div/div[2]/div[1]/div[1]/div[2]/div/div/div[2]')
         site = sel.xpath('//div/a[@id="hero-transcript-link"]/@href').extract()[0]
-        #print "site is",site.extract()
+        #print "site is",site
         url= 'http://%s%s' % (self.allowed_domains[0],site)
+        #yield Request(url,callback=self.parse_transcript,meta={'item':item})
         #print "transcript url",url
         rdir = "%s/%s" % (self.root_dir,item['speaker'][0]) 
         #print "output dir",rdir
@@ -108,7 +109,6 @@ class TedSpider(scrapy.Spider):
 
         for js in response.xpath('//script'):
             txt = js.xpath('.//text()').extract()
-            #print "extract ",txt
             if len(txt):
                 txt = txt[0]
 
@@ -116,35 +116,38 @@ class TedSpider(scrapy.Spider):
                 d = json.loads(txt[txt.find('{'):txt.rfind('}')+1])
                 subtitleDownload = d['talks'][0]['subtitledDownloads']
                 # download audio 
+                #print "------------------download ",subtitleDownload
                 for k,v in subtitleDownload.items():
                     #print "lang",k,'--->',v
                     # 下载中英文两种语言的视频
                     if k == 'zh-cn' or k == 'en':
                         try:
-                            pos = v['high'].rfind('/')+1
-                            output = "%s/%s" % (rdir,v['high'][pos:])
+                            fp = v.get('high','low')
+                            pos = fp.rfind('/')+1
+                            output = "%s/%s" % (rdir,fp[pos:])
                         except KeyError:
-                            print "occur error",v
+                            print "-----------------------occur error",v
                             sys.exit(0)
-                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,v['high'].encode('utf-8'),output.encode('utf-8')))
+                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
                         if k == 'en':
-                            yield self.extract_mp3(response,output)
-        yield Request(url,callback=self.parse_transcript,meta={'item':item})
-        """
-        这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
-            audioDownload = d['talks'][0]['audioDownload']
-            if audioDownload:
-                t = audioDownload.split('?')[0]
-                pos = t.rfind('/') + 1
-                #output = "%s/%s" % (rdir,t[pos:])
-                output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
-                try:
-                    pass
-                    os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
-                except UnicodeEncodeError:
-                    print "str is",audioDownload,output
-                    sys.exit(0)
-        """
+                            #print "-----------------------handle lrc"
+                            self.extract_mp3(response,output)
+                            yield Request(url,callback=self.parse_transcript,meta={'item':item})
+                        """
+                        这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
+                            audioDownload = d['talks'][0]['audioDownload']
+                            if audioDownload:
+                                t = audioDownload.split('?')[0]
+                                pos = t.rfind('/') + 1
+                                #output = "%s/%s" % (rdir,t[pos:])
+                                output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
+                                try:
+                                    pass
+                                    os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
+                                except UnicodeEncodeError:
+                                    print "str is",audioDownload,output
+                                    sys.exit(0)
+                        """
                         #break
 
         
@@ -194,7 +197,13 @@ class TedSpider(scrapy.Spider):
                     #print "data-time is -------------------------",ms
                     dtime = timedelta(milliseconds = int(ms[0]))
                     mf = ' '.join(f.xpath('./text()').extract()[0].splitlines())
-                    txt = '[%s]%s' % (str(start + dtime),mf)
+                    p = str(start + dtime)[2:]
+                    if len(p) == 5:
+                        p = p + ".000"
+                    else:
+                        p = p[:-3]
+                    txt = '[%s]%s' % (p,mf)
+                    print "lrc text",txt
                     fd.write(txt.strip().encode('utf-8'))
                     fd.write('\n')
         url = response.url.replace('=en','=zh-cn')
