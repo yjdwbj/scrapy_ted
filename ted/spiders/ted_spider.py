@@ -6,11 +6,14 @@ from ted.items import TedItem
 from scrapy.http import Request
 from BeautifulSoup import BeautifulSoup as BS
 from datetime import timedelta
+import subprocess
 import re
 import json
 import os,sys
 
 USERAGENT='Mozilla/5.0 (X11; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0'
+CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet"]
+CONVERT = 'ffmpeg;-i;%s;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
 
 class TedSpider(scrapy.Spider):
     name = "TED"
@@ -27,6 +30,40 @@ class TedSpider(scrapy.Spider):
            # "http://www.ted.com/playlists/311/time_warp",
            # "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo"
             ]
+
+    def extract_mp3(self,response,mp4):
+        """ 这里要用到FFMPEG工具"""
+        item = response.meta['item']
+        rdir = "%s/%s" % (self.root_dir,item['speaker'][0]) 
+        CMDSTR.append("%s" % mp4)
+        p = subprocess.Popen(CMDSTR,stdout=subprocess.PIPE,stderr = subprocess.PIPE,shell=False)
+        out,err = p.communicate()
+        #print " ffprobe out ---------------------------------------------"
+        #print out
+        #print " ffprobe err ---------------------------------------------"
+        #print err
+        title = ''.join(item['title'][0].splitlines())
+        item['title'][0] = title
+        for x in out.splitlines():
+            if 'title' in x.strip():
+                title = x.split(':').pop().strip()
+                break
+
+
+        output = "%s/%s.mp3" % (rdir,title)
+        if(os.path.exists(output)):
+            return
+
+        ffmpegstr = CONVERT % (mp4 ,''.join(item['speaker'][0].splitlines()),title,output)
+        print ffmpegstr.split(";")
+        p = subprocess.Popen(ffmpegstr.split(';'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=False)
+        #p = subprocess.Popen(ffmpegstr.split(';'))
+        #out,err = p.communicate()
+        #print " ffmpeg out ---------------------------------------------"
+        #print out
+        #print " ffmpeg err ---------------------------------------------"
+        #print err
+                
 
     def parse(self,response):
         sel = Selector(response)
@@ -55,6 +92,7 @@ class TedSpider(scrapy.Spider):
             with open('%s/talk.info' % sdir,'w') as fd:
                 fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
 
+
     def parse_speaker(self,response):
         item = response.meta['item']
         #url = response.url.split('//')[1].split('/')
@@ -64,34 +102,20 @@ class TedSpider(scrapy.Spider):
         #print "site is",site.extract()
         url= 'http://%s%s' % (self.allowed_domains[0],site)
         #print "transcript url",url
-        yield Request(url,callback=self.parse_transcript,meta={'item':item})
         rdir = "%s/%s" % (self.root_dir,item['speaker'][0]) 
         #print "output dir",rdir
         # 下载只用wget 顺序下载，多线程怕对务器产生大压力。
-        return
 
         for js in response.xpath('//script'):
             txt = js.xpath('.//text()').extract()
             #print "extract ",txt
             if len(txt):
                 txt = txt[0]
+
             if 'q("talkPage.init",{"talks"' in txt:
                 d = json.loads(txt[txt.find('{'):txt.rfind('}')+1])
                 subtitleDownload = d['talks'][0]['subtitledDownloads']
                 # download audio 
-                audioDownload = d['talks'][0]['audioDownload']
-                if audioDownload:
-                    t = audioDownload.split('?')[0]
-                    pos = t.rfind('/') + 1
-                    #output = "%s/%s" % (rdir,t[pos:])
-                    output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
-                    try:
-                        pass
-                        os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
-                    except UnicodeEncodeError:
-                        print "str is",audioDownload,output
-                        sys.exit(0)
-
                 for k,v in subtitleDownload.items():
                     #print "lang",k,'--->',v
                     # 下载中英文两种语言的视频
@@ -102,8 +126,30 @@ class TedSpider(scrapy.Spider):
                         except KeyError:
                             print "occur error",v
                             sys.exit(0)
-                        #os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,v['high'],output))
+                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,v['high'].encode('utf-8'),output.encode('utf-8')))
+                        if k == 'en':
+                            yield self.extract_mp3(response,output)
+        yield Request(url,callback=self.parse_transcript,meta={'item':item})
+        """
+        这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
+            audioDownload = d['talks'][0]['audioDownload']
+            if audioDownload:
+                t = audioDownload.split('?')[0]
+                pos = t.rfind('/') + 1
+                #output = "%s/%s" % (rdir,t[pos:])
+                output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
+                try:
+                    pass
+                    os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
+                except UnicodeEncodeError:
+                    print "str is",audioDownload,output
+                    sys.exit(0)
+        """
                         #break
+
+        
+
+
 
     def parse_transcript(self,response):
         item = response.meta['item']
