@@ -4,7 +4,7 @@ from scrapy.spider import Spider
 from scrapy.selector import Selector
 from ted.items import TedItem
 from scrapy.http import Request
-from BeautifulSoup import BeautifulSoup as BS
+#from BeautifulSoup import BeautifulSoup as BS
 from datetime import timedelta
 import subprocess
 import re
@@ -14,6 +14,7 @@ import os,sys
 USERAGENT='Mozilla/5.0 (X11; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0'
 CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet",""]
 CONVERT = 'ffmpeg;-i;%s;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
+CHKFFMPEG = os.system('which ffmpeg')
 
 class TedSpider(scrapy.Spider):
     name = "TED"
@@ -28,7 +29,9 @@ class TedSpider(scrapy.Spider):
             "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
             "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
             "http://www.ted.com/playlists/311/time_warp",
-            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo"
+            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
+            "https://www.ted.com/playlists/370/top_ted_talks_of_2016",
+            "https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1"
             ]
 
     def extract_mp3(self,response,mp4):
@@ -51,7 +54,7 @@ class TedSpider(scrapy.Spider):
 
 
         output = "%s/%s.mp3" % (rdir,title)
-        if(os.path.exists(output)):
+        if os.path.exists(output)  and os.stat(output).st_size > 0:
             return
 
         ffmpegstr = CONVERT % (mp4 ,''.join(item['speaker'][0].splitlines()),title,output)
@@ -129,12 +132,18 @@ class TedSpider(scrapy.Spider):
                             print "-----------------------occur error",v
                             sys.exit(0)
                         os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
-                        if k == 'en':
-                            #print "-----------------------handle lrc"
-                            self.extract_mp3(response,output)
-                            yield Request(url,callback=self.parse_transcript,meta={'item':item})
-                        """
-                        这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
+                        if CHKFFMPEG == 0:
+                            if k == 'en':
+                                """
+                                这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
+                                """
+                                #print "-----------------------handle lrc"
+                                print "extract mp3"
+                                self.extract_mp3(response,output)
+                                print "write lyrics file"
+                                yield Request(url,callback=self.parse_transcript,meta={'item':item})
+                        else:
+                            """ 没有安装FFMPEG只能下载 """
                             audioDownload = d['talks'][0]['audioDownload']
                             if audioDownload:
                                 t = audioDownload.split('?')[0]
@@ -143,12 +152,10 @@ class TedSpider(scrapy.Spider):
                                 output = "%s/%s.mp3" % (rdir,item['title'][0].replace('\n',''))
                                 try:
                                     pass
-                                    os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload,output))
+                                    os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload.encode('utf-8'),output.encode('utf-8')))
                                 except UnicodeEncodeError:
                                     print "str is",audioDownload,output
                                     sys.exit(0)
-                        """
-                        #break
 
         
 
