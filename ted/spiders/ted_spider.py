@@ -24,12 +24,12 @@ class TedSpider(scrapy.Spider):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-            "http://www.ted.com/playlists/311/time_warp",
-            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
+            #"http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            #"http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+            #"http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+            #"http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+            #"http://www.ted.com/playlists/311/time_warp",
+            #"http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
             "https://www.ted.com/playlists/370/top_ted_talks_of_2016",
             "https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1"
             ]
@@ -53,7 +53,7 @@ class TedSpider(scrapy.Spider):
                 break
 
 
-        output = "%s/%s.mp3" % (rdir,title)
+        output = "%s/%s.mp3" % (rdir.encode('utf-8'),title.encode('utf-8'))
         if os.path.exists(output)  and os.stat(output).st_size > 0:
             return
 
@@ -125,7 +125,11 @@ class TedSpider(scrapy.Spider):
                     # 下载中英文两种语言的视频
                     if k == 'zh-cn' or k == 'en':
                         try:
-                            fp = v.get('high','low')
+                            fp = v.get('high',None)
+                            if not fp:
+                                fp = v.get('low',None)
+                                if not fp:
+                                    continue
                             pos = fp.rfind('/')+1
                             output = "%s/%s" % (rdir,fp[pos:])
                         except KeyError:
