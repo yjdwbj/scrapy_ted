@@ -20,16 +20,16 @@ class TedSpider(scrapy.Spider):
     name = "TED"
     allowed_domains = ["ted.com"]
     sdir = None
-    root_dir = os.getcwd()+"/ted_download"
+    root_dir = os.getcwd()+"/download"
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-            #"http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-            #"http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-            #"http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-            #"http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-            #"http://www.ted.com/playlists/311/time_warp",
-            #"http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
+            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+            "http://www.ted.com/playlists/311/time_warp",
+            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
             "https://www.ted.com/playlists/370/top_ted_talks_of_2016",
             "https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1"
             ]
@@ -123,7 +123,8 @@ class TedSpider(scrapy.Spider):
                 for k,v in subtitleDownload.items():
                     #print "lang",k,'--->',v
                     # 下载中英文两种语言的视频
-                    if k == 'zh-cn' or k == 'en':
+                    #if k == 'zh-cn' or k == 'en':
+                    if k == 'en':
                         try:
                             fp = v.get('high',None)
                             if not fp:
@@ -137,15 +138,15 @@ class TedSpider(scrapy.Spider):
                             sys.exit(0)
                         os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
                         if CHKFFMPEG == 0:
-                            if k == 'en':
-                                """
-                                这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
-                                """
-                                #print "-----------------------handle lrc"
-                                print "extract mp3"
-                                self.extract_mp3(response,output)
-                                print "write lyrics file"
-                                yield Request(url,callback=self.parse_transcript,meta={'item':item})
+                            #if k == 'en':
+                            """
+                            这里如果用下载的mp3会出现与字幕不匹配的问题,因为下载的mp3前面插入十几秒的音频
+                            """
+                            #print "-----------------------handle lrc"
+                            print "extract mp3"
+                            self.extract_mp3(response,output)
+                            print "write lyrics file"
+                            yield Request(url,callback=self.parse_transcript,meta={'item':item})
                         else:
                             """ 没有安装FFMPEG只能下载 """
                             audioDownload = d['talks'][0]['audioDownload']
@@ -215,7 +216,7 @@ class TedSpider(scrapy.Spider):
                         p = p[:-3]
                     txt = '[%s]%s' % (p,mf)
                     fd.write(txt.strip().encode('utf-8'))
-                    fd.write('\n')
+                    fd.write(u'\n')
         url = response.url.replace('=en','=zh-cn')
         #print "zh_cn links,url",url
         yield Request(url,callback=self.parse_transcript,meta={'item':item})
