@@ -134,8 +134,6 @@ class TedSpider(scrapy.Spider):
                         item['duration'] = x['duration']
                         item['title'] = x['title'].encode('utf-8')
                         item['url'] = x['url']
-                        print "handler item ==============="
-                        print x['url']
                         item['info'] = ""
                         sdir = "%s/%s" % (self.root_dir,item['speaker']) 
                         if not os.path.exists(sdir):
@@ -145,7 +143,6 @@ class TedSpider(scrapy.Spider):
                                 errback=self.parse_error)
                         with open('%s/talk.info' % sdir,'w') as fd:
                             fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
-                    break
 
 
 
@@ -158,6 +155,8 @@ class TedSpider(scrapy.Spider):
     def parse_speaker(self,response):
         item = response.meta['item']
         #url = response.url.split('//')[1].split('/')
+        print "handler item ==============="
+        print response.url
         sel = Selector(response)
         #sites = sel.xpath('/html/body/div[1]/div[2]/div/div[2]/div[1]/div[1]/div[2]/div/div/div[2]')
         site = sel.xpath('//div/a[@id="hero-transcript-link"]/@href').extract()[0]
