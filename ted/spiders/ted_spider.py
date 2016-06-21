@@ -17,7 +17,7 @@ import os,sys
 
 USERAGENT='Mozilla/5.0 (X11; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0'
 CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet",""]
-CONVERT = 'ffmpeg;-i;%s;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
+CONVERT = 'ffmpeg;-i;%s;-vn;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
 CHKFFMPEG = os.system('which ffmpeg')
 
 class TedSpider(scrapy.Spider):
@@ -56,14 +56,15 @@ class TedSpider(scrapy.Spider):
         #print out
         #print " ffprobe err ---------------------------------------------"
         #print err
-        title = ''.join(item['title'].splitlines()).encode('utf-8')
+        title = item['title'].encode('utf-8')
         item['title'] = title
-        if item['info'] == '':
-            item['info'] = out
         for x in out.splitlines():
             if 'title' in x.strip():
                 title = x.split(':').pop().strip()
-                break
+
+            if 'description' in x.strip():
+                item['info'] = x.split(':').pop().strip()
+
         output = "%s/%s.mp3" % (rdir.encode('utf-8'),title)
         if os.path.exists(output)  and os.stat(output).st_size > 0:
             return
@@ -292,7 +293,7 @@ class TedSpider(scrapy.Spider):
                     fd.write(u'\n')
         url = response.url.replace('=en','=zh-cn')
         #print "zh_cn links,url",url
-        yield Request(url,callback=self.parse_transcript,meta={'item':item})
+        yield Request(url,callback=self.parse_transcript,meta={'item':item},dont_filter=True)
 
 
 
