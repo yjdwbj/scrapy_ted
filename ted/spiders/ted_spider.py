@@ -28,14 +28,14 @@ class TedSpider(scrapy.Spider):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-            #"http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-            #"http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-            #"http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-            #"http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-            #"http://www.ted.com/playlists/311/time_warp",
-            #"http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
-            #"https://www.ted.com/playlists/370/top_ted_talks_of_2016",
-            #"https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1"
+            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+            "http://www.ted.com/playlists/311/time_warp",
+            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
+            "https://www.ted.com/playlists/370/top_ted_talks_of_2016",
+            "https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1",
             "http://www.ted.com/"
             ]
 
@@ -48,7 +48,7 @@ class TedSpider(scrapy.Spider):
         """ 这里要用到FFMPEG工具"""
         print "extract mp3"
         item = response.meta['item']
-        rdir = "%s/%s" % (self.root_dir,item['speaker']) 
+        #rdir = "%s/%s" % (self.root_dir,item['speaker']) 
         CMDSTR[-1] = mp4
         p = subprocess.Popen(CMDSTR,stdout=subprocess.PIPE,stderr = subprocess.PIPE,shell=False)
         out,err = p.communicate()
@@ -65,7 +65,8 @@ class TedSpider(scrapy.Spider):
             if 'description' in x.strip():
                 item['info'] = x.split(':').pop().strip()
 
-        output = "%s/%s.mp3" % (rdir.encode('utf-8'),title)
+        os.rename(mp4,"%s.mp4" % title)
+        output = u"%s/%s.mp3" % (self.root_dir,title)
         if os.path.exists(output)  and os.stat(output).st_size > 0:
             return
 
@@ -85,14 +86,14 @@ class TedSpider(scrapy.Spider):
         for site in sites:
             item = TedItem()
             item['speaker'] = site.xpath('div/div/div[1]/span/a/text()').extract()[0].encode('utf-8')
-            sdir = "%s/%s" % (self.root_dir,item['speaker']) 
-            if not os.path.exists(sdir):
-                os.mkdir(sdir)
+            #sdir = "%s/%s" % (self.root_dir,item['speaker']) 
+            #if not os.path.exists(sdir):
+            #    os.mkdir(sdir)
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/a/span/span[2]
-            item['duration'] = site.xpath('div/div/a/span/span[2]/text()').extract()[0]
+            item['duration'] = site.xpath('div/div/a/span/span[2]/text()').extract()[0].strip()
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/div[1]/h9/a
-            item['title'] = site.xpath('div/div/div[1]/h9/a/text()').extract()[0].encode('utf-8')
-            item['url'] = site.xpath('div/div/div[1]/h9/a/@href').extract()[0]
+            item['title'] = site.xpath('div/div/div[1]/h9/a/text()').extract()[0].strip()
+            item['url'] = site.xpath('div/div/div[1]/h9/a/@href').extract()[0].strip()
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/div[2]/div[1]
             item['info'] = site.xpath('div/div/div[2]/div[1]/text()').extract()[0]
             #print item['url']
@@ -100,7 +101,7 @@ class TedSpider(scrapy.Spider):
                     callback=self.parse_speaker,meta={'item':item})
             items.append(item)
             
-            with open('%s/talk.info' % sdir,'w') as fd:
+            with open(u'%s/%s.info' % (self.root_dir,item['title']),'w') as fd:
                 fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
 
         #self.parse_newest_talks(response)
@@ -132,16 +133,14 @@ class TedSpider(scrapy.Spider):
                         item = TedItem()
                         item['speaker'] = x['speaker'].encode('utf-8')
                         item['duration'] = x['duration']
-                        item['title'] = x['title'].encode('utf-8')
-                        item['url'] = x['url']
+                        item['title'] = x['title'].strip().encode('utf-8')
+                        item['url'] = x['url'].strip()
                         item['info'] = ""
-                        sdir = "%s/%s" % (self.root_dir,item['speaker']) 
-                        if not os.path.exists(sdir):
-                            os.mkdir(sdir)
+                        #sdir = "%s/%s" % (self.root_dir,item['speaker']) 
                         yield Request('http://%s%s' % (self.allowed_domains[0],x['url']),
                                 callback=self.parse_speaker,meta={'item':item},dont_filter=True,
                                 errback=self.parse_error)
-                        with open('%s/talk.info' % sdir,'w') as fd:
+                        with open(u'%s/%s.info' % (self.root_dir,item['title']),'w') as fd:
                             fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
 
 
@@ -163,12 +162,12 @@ class TedSpider(scrapy.Spider):
         url= 'http://%s%s' % (self.allowed_domains[0],site)
         #yield Request(url,callback=self.parse_transcript,meta={'item':item})
         #print "transcript url",url
-        try:
-            rdir = u"%s/%s" % (self.root_dir,item['speaker']) 
-        except:
-            logging.debug("err some %s" % item['speaker'])
-            print "error return"
-            return
+        #try:
+        #    rdir = u"%s/%s" % (self.root_dir,item['speaker']) 
+        #except:
+        #    logging.debug("err some %s" % item['speaker'])
+        #    print "error return"
+        #    return
                     
         #print "output dir",rdir
         # 下载只用wget 顺序下载，多线程怕对务器产生大压力。
@@ -202,7 +201,7 @@ class TedSpider(scrapy.Spider):
                                 if not fp:
                                     continue
                             pos = fp.rfind('/')+1
-                            output = u"%s/%s" % (rdir,fp[pos:].encode('utf-8'))
+                            output = u"%s/%s" % (self.root_dir,fp[pos:].encode('utf-8'))
                         except KeyError:
                             print "-----------------------occur error",v
                             sys.exit(0)
@@ -225,7 +224,7 @@ class TedSpider(scrapy.Spider):
                                 t = audioDownload.split('?')[0]
                                 pos = t.rfind('/') + 1
                                 #output = "%s/%s" % (rdir,t[pos:])
-                                output = "%s/%s.mp3" % (rdir,item['title'].replace('\n',''))
+                                output = u"%s/%s.mp3" % (self.root_dir,item['title'].replace('\n',''))
                                 try:
                                     pass
                                     os.system('wget  --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,audioDownload.encode('utf-8'),output.encode('utf-8')))
@@ -242,11 +241,9 @@ class TedSpider(scrapy.Spider):
         print "response status code",response.status
         lang = response.url.split('=')[1]
         if lang == 'en':
-            fname = u"%s/%s/%s.lrc" % (self.root_dir,item['speaker'],
-                    item['title'])
+            fname = u"%s/%s.lrc" % (self.root_dir,item['title'])
         else:
-            fname = u"%s/%s/%s-%s.lrc" % (self.root_dir,item['speaker'],
-                    item['title'],lang)
+            fname = u"%s/%s-%s.lrc" % (self.root_dir,item['title'],lang)
 
         sel = Selector(response)
         lines  = response.xpath('//p[@class="talk-transcript__para"]')
