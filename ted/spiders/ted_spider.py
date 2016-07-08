@@ -16,8 +16,10 @@ import os,sys
 
 
 USERAGENT='Mozilla/5.0 (X11; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0'
-CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet",""]
-CONVERT = 'ffmpeg;-i;%s;-vn;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
+CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","debug",""]
+#CMDSTR = ["ffprobe","-show_format","-pretty","-loglevel","quiet",""]
+#CONVERT = u'ffmpeg;-i;%s;-vn;-ac;2;-ar;44100;-ab;192k;-metadata;artist=%s;-metadata;title=%s;%s'
+CONVERT = u'ffmpeg;-i;%s;-vn;-ac;%d;-ar;%d;-ab;%dk;-metadata;artist=%s;-metadata;title=%s;%s'
 CHKFFMPEG = os.system('which ffmpeg')
 
 class TedSpider(scrapy.Spider):
@@ -28,14 +30,14 @@ class TedSpider(scrapy.Spider):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-            "http://www.ted.com/playlists/311/time_warp",
-            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
-            "https://www.ted.com/playlists/370/top_ted_talks_of_2016",
-            "https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1",
+            #"http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            #"http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+            #"http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+            #"http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+            #"http://www.ted.com/playlists/311/time_warp",
+            #"http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
+            #"https://www.ted.com/playlists/370/top_ted_talks_of_2016",
+            #"https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1",
             "http://www.ted.com/"
             ]
 
@@ -56,23 +58,58 @@ class TedSpider(scrapy.Spider):
         #print out
         #print " ffprobe err ---------------------------------------------"
         #print err
-        title = item['title'].encode('utf-8')
+        title = item['title'].strip().encode('utf-8')
         item['title'] = title
+        samples = 44100
+        channel = 1
+        rate = 60
         for x in out.splitlines():
-            if 'title' in x.strip():
-                title = x.split(':').pop().strip()
+            if 'TAG:title' in x.strip():
+                title = x.split(':').pop().strip().encode('utf-8')
+                print "title",title
 
-            if 'description' in x.strip():
+            if 'TAG:description' in x.strip():
                 item['info'] = x.split(':').pop().strip()
+                print "description ",item['info']
 
-        os.rename(mp4,"%s.mp4" % title)
-        output = u"%s/%s.mp3" % (self.root_dir,title)
+        for x in err.splitlines():
+            if 'Audio:' in x:
+                # examples line    Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 75 kb/s (default)
+                lst = x.strip().split(' ')
+                #print " list is ",lst
+                samples = int(lst[10])
+                if lst[12] == 'stereo':
+                    channel = 2
+                else:
+                    channel = 1
+
+                rate = int(lst[14])
+
+
+        nname = "%s/%s.mp4" % (self.root_dir,title)
+        os.rename(mp4,nname)
+        try:
+            output = u"%s/%s.mp3" % (self.root_dir,title)
+        except UnicodeDecodeError:
+            print "UnicodeDecodeError:",title
+
         if os.path.exists(output)  and os.stat(output).st_size > 0:
             return
 
-        ffmpegstr = CONVERT % (mp4 ,item['speaker'],title,output)
-        #print ffmpegstr.split(";")
+        try:
+            ffmpegstr = CONVERT % (nname,channel,samples,rate ,item['speaker'],title,output)
+        except:
+            print "err convert str "
+            print nname
+            print item['speaker'],title,output
+            return
+
+        
         p = subprocess.Popen(ffmpegstr.split(';'),stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=False)
+        out,err = p.communicate()
+        #print out
+        #print "  convert ---------------------------------------- err"
+        #print err
                 
 
     def parse(self,response):
@@ -85,7 +122,7 @@ class TedSpider(scrapy.Spider):
         items =[]
         for site in sites:
             item = TedItem()
-            item['speaker'] = site.xpath('div/div/div[1]/span/a/text()').extract()[0].encode('utf-8')
+            item['speaker'] = site.xpath('div/div/div[1]/span/a/text()').extract()[0].strip().encode('utf-8')
             #sdir = "%s/%s" % (self.root_dir,item['speaker']) 
             #if not os.path.exists(sdir):
             #    os.mkdir(sdir)
@@ -154,7 +191,6 @@ class TedSpider(scrapy.Spider):
     def parse_speaker(self,response):
         item = response.meta['item']
         #url = response.url.split('//')[1].split('/')
-        print "handler item ==============="
         print response.url
         sel = Selector(response)
         #sites = sel.xpath('/html/body/div[1]/div[2]/div/div[2]/div[1]/div[1]/div[2]/div/div/div[2]')
