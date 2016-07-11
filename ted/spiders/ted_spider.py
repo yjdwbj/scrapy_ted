@@ -30,15 +30,14 @@ class TedSpider(scrapy.Spider):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
     start_urls =[
-            #"http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
-            #"http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
-            #"http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
-            #"http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
-            #"http://www.ted.com/playlists/311/time_warp",
-            #"http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
-            #"https://www.ted.com/playlists/370/top_ted_talks_of_2016",
-            #"https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1",
-            "http://www.ted.com/"
+            "http://www.ted.com/playlists/171/the_most_popular_talks_of_all",
+            "http://www.ted.com/playlists/260/talks_to_watch_when_your_famil",
+            "http://www.ted.com/playlists/309/talks_on_how_to_make_love_last",
+            "http://www.ted.com/playlists/310/talks_on_artificial_intelligen",
+            "http://www.ted.com/playlists/311/time_warp",
+            "http://www.ted.com/playlists/312/weird_facts_about_the_human_bo",
+            "https://www.ted.com/playlists/370/top_ted_talks_of_2016",
+            "https://www.ted.com/playlists/216/talks_to_restore_your_faith_in_1"
             ]
 
     logfile = "%s/scrapy.log" % os.getcwd()
@@ -59,18 +58,18 @@ class TedSpider(scrapy.Spider):
         #print " ffprobe err ---------------------------------------------"
         #print err
         title = item['title'].strip().encode('utf-8')
-        item['title'] = title
+        #item['title'] = title
         samples = 44100
         channel = 1
         rate = 60
         for x in out.splitlines():
             if 'TAG:title' in x.strip():
                 title = x.split(':').pop().strip().encode('utf-8')
-                print "title",title
+                #print "title",title
 
             if 'TAG:description' in x.strip():
                 item['info'] = x.split(':').pop().strip()
-                print "description ",item['info']
+                #print "description ",item['info']
 
         for x in err.splitlines():
             if 'Audio:' in x:
@@ -86,19 +85,20 @@ class TedSpider(scrapy.Spider):
                 rate = int(lst[14])
 
 
-        nname = "%s/%s.mp4" % (self.root_dir,title)
-        os.rename(mp4,nname)
+        #nname = "%s/%s.mp4" % (self.root_dir,title)
+        #os.rename(mp4,nname)
         try:
             output = u"%s/%s.mp3" % (self.root_dir,title)
         except UnicodeDecodeError:
             print "UnicodeDecodeError:",title
+            print "output format error"
 
         if os.path.exists(output)  and os.stat(output).st_size > 0:
             return
 
         try:
-            ffmpegstr = CONVERT % (nname,channel,samples,rate ,item['speaker'],title,output)
-        except:
+            ffmpegstr = CONVERT % (mp4,channel,samples,rate ,item['speaker'],title,output)
+        except UnicodeDecodeError:
             print "err convert str "
             print nname
             print item['speaker'],title,output
@@ -113,7 +113,6 @@ class TedSpider(scrapy.Spider):
                 
 
     def parse(self,response):
-        yield  Request('http://www.ted.com',callback=self.parse_newest_talks)
         #res.meta['item'] = item
         sel = Selector(response)
         #sites = sel.xpath('/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li')
@@ -129,7 +128,8 @@ class TedSpider(scrapy.Spider):
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/a/span/span[2]
             item['duration'] = site.xpath('div/div/a/span/span[2]/text()').extract()[0].strip()
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/div[1]/h9/a
-            item['title'] = site.xpath('div/div/div[1]/h9/a/text()').extract()[0].strip()
+            item['title'] = site.xpath('div/div/div[1]/h9/a/text()').extract()[0].strip().encode('utf-8')
+            #print "the title is ",item['title']
             item['url'] = site.xpath('div/div/div[1]/h9/a/@href').extract()[0].strip()
             #/html/body/div/div[2]/div/div[2]/div[3]/div/div[1]/ul/li[1]/div/div/div[2]/div[1]
             item['info'] = site.xpath('div/div/div[2]/div[1]/text()').extract()[0]
@@ -138,15 +138,20 @@ class TedSpider(scrapy.Spider):
                     callback=self.parse_speaker,meta={'item':item})
             items.append(item)
             
-            with open(u'%s/%s.info' % (self.root_dir,item['title']),'w') as fd:
-                fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
+            #try:
+            #    info = u'%s/%s.info' % (self.root_dir,item['title'])
+            #except UnicodeDecodeError:
+            #    print "parse error --------- title is",item['title']
+            #    continue
+            #with open(info,'w') as fd:
+            #    fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
 
         #self.parse_newest_talks(response)
         #self.parse_newest_talks(response)
+        yield  Request('http://www.ted.com',callback=self.parse_newest_talks)
 
     def parse_newest_talks(self,response):
-        print "start newest home -----------------------------------------------"
-        print response
+        #print response
         #data = urllib2.urlopen("http://www.ted.com").read()
         #hxs = HtmlXPathSelector(text = data)
         sel = Selector(response)
@@ -177,8 +182,13 @@ class TedSpider(scrapy.Spider):
                         yield Request('http://%s%s' % (self.allowed_domains[0],x['url']),
                                 callback=self.parse_speaker,meta={'item':item},dont_filter=True,
                                 errback=self.parse_error)
-                        with open(u'%s/%s.info' % (self.root_dir,item['title']),'w') as fd:
-                            fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
+                        #try:
+                        #    info = u'%s/%s.info' % (self.root_dir,item['title'])
+                        #except UnicodeDecodeError:
+                        #    print "newest talks error --- title is",item['title']
+                        #    continue
+                        #with open(info,'w') as fd:
+                        #    fd.writelines(json.dumps(item.__dict__,indent=4,separators=(',',':')))
 
 
 
@@ -191,10 +201,14 @@ class TedSpider(scrapy.Spider):
     def parse_speaker(self,response):
         item = response.meta['item']
         #url = response.url.split('//')[1].split('/')
-        print response.url
         sel = Selector(response)
         #sites = sel.xpath('/html/body/div[1]/div[2]/div/div[2]/div[1]/div[1]/div[2]/div/div/div[2]')
-        site = sel.xpath('//div/a[@id="hero-transcript-link"]/@href').extract()[0]
+        try:
+            site = sel.xpath('//div/a[@id="hero-transcript-link"]/@href').extract()[0]
+        except IndexError:
+            print "error xpath --- ",sel,
+            print "error url", response.url
+            return
         url= 'http://%s%s' % (self.allowed_domains[0],site)
         #yield Request(url,callback=self.parse_transcript,meta={'item':item})
         #print "transcript url",url
@@ -237,11 +251,16 @@ class TedSpider(scrapy.Spider):
                                 if not fp:
                                     continue
                             pos = fp.rfind('/')+1
-                            output = u"%s/%s" % (self.root_dir,fp[pos:].encode('utf-8'))
+                            #output = u"%s/%s" % (self.root_dir,fp[pos:].encode('utf-8'))
+                            output = u"%s/%s.mp4" % (self.root_dir,item['title'])
                         except KeyError:
                             print "-----------------------occur error",v
                             sys.exit(0)
-                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
+
+                        if os.path.exists(output)  and os.stat(output).st_size > 0:
+                            continue
+                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' \
+                                % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
                         if CHKFFMPEG == 0:
                             #if k == 'en':
                             """
