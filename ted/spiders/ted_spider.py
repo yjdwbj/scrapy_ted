@@ -99,8 +99,7 @@ class TedSpider(scrapy.Spider):
         try:
             ffmpegstr = CONVERT % (mp4,channel,samples,rate ,item['speaker'],title,output)
         except UnicodeDecodeError:
-            print "err convert str "
-            print nname
+            print "err convert str ",mp4
             print item['speaker'],title,output
             return
 
@@ -252,15 +251,19 @@ class TedSpider(scrapy.Spider):
                                     continue
                             pos = fp.rfind('/')+1
                             #output = u"%s/%s" % (self.root_dir,fp[pos:].encode('utf-8'))
-                            output = u"%s/%s.mp4" % (self.root_dir,item['title'])
+                            output = u"%s/%s.mp4" % (self.root_dir,item['title'].strip().encode('utf-8'))
                         except KeyError:
                             print "-----------------------occur error",v
-                            sys.exit(0)
+                            continue
+                        except UnicodeDecodeError:
+                            print "UnicodeEncodeError ",item['title']
+                            continue
 
                         if os.path.exists(output)  and os.stat(output).st_size > 0:
-                            continue
-                        os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' \
-                                % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
+                            pass
+                        else:
+                            os.system('wget --wait=3 --read-timeout=5 -t 5 --user-agent="%s" -c %s -O "%s"' \
+                                    % (USERAGENT,fp.encode('utf-8'),output.encode('utf-8')))
                         if CHKFFMPEG == 0:
                             #if k == 'en':
                             """
@@ -308,10 +311,10 @@ class TedSpider(scrapy.Spider):
         #print "lines",lines
         with  open(fname,'w') as fd:
             #print "item['title']",item['title']
-            s= '[ti:%s]\n' % ''.join(item['title'].splitlines())
-            fd.write(s.encode('utf-8'))
-            s='[ar:%s]\n' % ''.join(item['speaker'].splitlines())
-            fd.write(s.encode('utf-8'))
+            s= u'[ti:%s]\n' % u''.join(item['title'].splitlines())
+            fd.write(s)
+            s=u'[ar:%s]\n' % u''.join(item['speaker'].splitlines())
+            fd.write(s)
             #fd.write(u'[al:www.ted.com]\n')
             fd.write(u'%s\n' % item['url'])
             fd.write(u'[offset:1000]\n')
@@ -339,7 +342,7 @@ class TedSpider(scrapy.Spider):
                         p = p + ".000"
                     else:
                         p = p[:-3]
-                    txt = '[%s]%s' % (p,mf)
+                    txt = u'[%s]%s' % (p,mf)
                     fd.write(txt.strip().encode('utf-8'))
                     fd.write(u'\n')
         url = response.url.replace('=en','=zh-cn')
